@@ -1,19 +1,16 @@
 import { Header } from '@/components/Header';
 import { AuctionStage } from '@/components/AuctionStage';
 import { VanguardCard } from '@/components/VanguardCard';
-import { StudentRoster } from '@/components/StudentRoster';
 import { useAuction } from '@/hooks/useAuction';
 import { Button } from '@/components/ui/button';
 import { RotateCcw } from 'lucide-react';
 
 const Index = () => {
   const {
-    students,
     vanguards,
     currentStudent,
     availableStudents,
     handleSale,
-    handleSkip,
     resetAuction,
   } = useAuction();
 
@@ -21,78 +18,56 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Header auctionActive={availableStudents.length > 0} />
 
-      <main className="container mx-auto px-4 py-6">
-        <div className="grid lg:grid-cols-12 gap-6">
-          {/* Main Auction Stage */}
-          <div className="lg:col-span-8 space-y-6">
-            <AuctionStage
-              currentStudent={currentStudent}
-              vanguards={vanguards}
-              onSale={handleSale}
-              onSkip={handleSkip}
-              remainingCount={availableStudents.length}
-              totalCount={students.length}
-            />
+      <main className="container mx-auto px-4 py-8 space-y-12">
+        {/* Main Auction Stage - Maximized */}
+        <div className="w-full max-w-5xl mx-auto space-y-8">
+          <AuctionStage
+            currentStudent={currentStudent}
+            vanguards={vanguards}
+            onSale={handleSale}
+            remainingCount={availableStudents.length}
+            totalCount={availableStudents.length + vanguards.reduce((acc, v) => acc + v.squad.length, 0)}
+          />
 
-            {/* Student Roster */}
-            <div className="h-[400px]">
-              <StudentRoster students={students} />
-            </div>
-          </div>
-
-          {/* Sidebar - Vanguard Leaderboard */}
-          <div className="lg:col-span-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-foreground">Vanguard Leaderboard</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={resetAuction}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Reset
-              </Button>
-            </div>
-
-            <div className="space-y-4">
-              {vanguards.map((vanguard) => (
-                <VanguardCard key={vanguard.id} vanguard={vanguard} />
-              ))}
-            </div>
-
-            {/* Stats Summary */}
-            <div className="glass-card rounded-xl p-4 mt-6">
-              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-4">
-                Auction Stats
-              </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-primary number-display">
-                    {students.length - availableStudents.length}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">Players Sold</p>
+          {/* Stats Summary - Compact Row */}
+          <div className="glass-card rounded-xl p-6 border-border/50">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
+              <div className="text-center group">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] mb-2 group-hover:text-primary transition-colors">Sold</p>
+                <div className="text-3xl font-black text-primary number-display">
+                  {vanguards.reduce((acc, v) => acc + v.squad.length, 0)}
                 </div>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-foreground number-display">
-                    {availableStudents.length}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">Remaining</p>
+              </div>
+              <div className="text-center group">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] mb-2 group-hover:text-foreground transition-colors">Active</p>
+                <div className="text-3xl font-black text-foreground number-display">
+                  {availableStudents.length}
                 </div>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-vanguard-amber number-display">
-                    {vanguards.reduce((sum, v) => sum + v.spent, 0).toFixed(1)}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">Total Spent (cr)</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-vanguard-blue number-display">
-                    {vanguards.reduce((sum, v) => sum + v.squad.length, 0)}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">Total Drafted</p>
+              </div>
+              <div className="text-center group">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] mb-2 group-hover:text-vanguard-amber transition-colors">Spent</p>
+                <div className="text-3xl font-black text-vanguard-amber number-display">
+                  {vanguards.reduce((sum, v) => sum + v.spent, 0).toFixed(1)}
+                  <span className="text-xs font-bold ml-1">cr</span>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Vanguard Grid - 4 Columns */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between px-2">
+            <div>
+              <h2 className="text-3xl font-black text-foreground tracking-tighter italic">VANGUARD LEADERBOARD</h2>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest mt-1">Real-time team standings & remaining budgets</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {vanguards.map((vanguard) => (
+              <VanguardCard key={vanguard.id} vanguard={vanguard} />
+            ))}
           </div>
         </div>
       </main>

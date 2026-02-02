@@ -18,16 +18,13 @@ interface StudentRosterProps {
 
 export function StudentRoster({ students }: StudentRosterProps) {
   const [search, setSearch] = useState('');
-  const [blockFilter, setBlockFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-
   const filteredStudents = students.filter((student) => {
     const matchesSearch =
       student.name.toLowerCase().includes(search.toLowerCase()) ||
       student.grNumber.toLowerCase().includes(search.toLowerCase());
-    const matchesBlock = blockFilter === 'all' || student.block.toString() === blockFilter;
     const matchesStatus = statusFilter === 'all' || student.status === statusFilter;
-    return matchesSearch && matchesBlock && matchesStatus;
+    return matchesSearch && matchesStatus;
   });
 
   const availableCount = students.filter((s) => s.status === 'available').length;
@@ -62,18 +59,7 @@ export function StudentRoster({ students }: StudentRosterProps) {
               className="pl-10 bg-secondary border-border"
             />
           </div>
-          <Select value={blockFilter} onValueChange={setBlockFilter}>
-            <SelectTrigger className="w-[120px] bg-secondary border-border">
-              <SelectValue placeholder="Block" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Blocks</SelectItem>
-              <SelectItem value="3">Block 3</SelectItem>
-              <SelectItem value="4">Block 4</SelectItem>
-              <SelectItem value="5">Block 5</SelectItem>
-              <SelectItem value="6">Block 6</SelectItem>
-            </SelectContent>
-          </Select>
+
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[120px] bg-secondary border-border">
               <SelectValue placeholder="Status" />
@@ -94,7 +80,7 @@ export function StudentRoster({ students }: StudentRosterProps) {
             <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
               <th className="px-4 py-3 font-medium">GR Number</th>
               <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium text-center">Block</th>
+
               <th className="px-4 py-3 font-medium text-center">Status</th>
               <th className="px-4 py-3 font-medium text-right">Price</th>
             </tr>
@@ -103,9 +89,8 @@ export function StudentRoster({ students }: StudentRosterProps) {
             {filteredStudents.map((student) => (
               <tr
                 key={student.id}
-                className={`hover:bg-secondary/50 transition-colors ${
-                  student.status === 'sold' ? 'opacity-60' : ''
-                }`}
+                className={`hover:bg-secondary/50 transition-colors ${student.status === 'sold' ? 'opacity-60' : ''
+                  }`}
               >
                 <td className="px-4 py-3">
                   <span className="font-mono text-sm text-muted-foreground">
@@ -115,11 +100,7 @@ export function StudentRoster({ students }: StudentRosterProps) {
                 <td className="px-4 py-3">
                   <span className="font-medium text-foreground">{student.name}</span>
                 </td>
-                <td className="px-4 py-3 text-center">
-                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-secondary text-sm font-medium">
-                    {student.block}
-                  </span>
-                </td>
+
                 <td className="px-4 py-3 text-center">
                   {student.status === 'sold' ? (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs font-medium text-muted-foreground">
@@ -136,7 +117,7 @@ export function StudentRoster({ students }: StudentRosterProps) {
                 <td className="px-4 py-3 text-right">
                   {student.status === 'sold' && student.soldPrice ? (
                     <span className="font-bold number-display text-foreground">
-                      {student.soldPrice} L
+                      {student.soldPrice} cr
                     </span>
                   ) : (
                     <span className="text-muted-foreground">—</span>

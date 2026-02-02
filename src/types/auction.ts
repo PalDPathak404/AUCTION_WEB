@@ -2,7 +2,6 @@ export interface Student {
   id: string;
   grNumber: string;
   name: string;
-  block: number;
   status: 'available' | 'sold';
   soldTo?: string;
   soldPrice?: number;
