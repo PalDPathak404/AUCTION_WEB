@@ -168,6 +168,12 @@ export function AuctionStage({
       return;
     }
 
+    const remaining = (selectedTeam?.budget || 0) - (selectedTeam?.spent || 0);
+    if (bidAmount > remaining) {
+      setError(`${selectedTeam?.name} has insufficient budget (${remaining.toFixed(2)} cr remaining)`);
+      return;
+    }
+
     setError('');
 
     const details = {
