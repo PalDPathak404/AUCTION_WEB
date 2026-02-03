@@ -18,8 +18,8 @@ import { toast } from 'sonner';
  */
 
 // ━━━ EASING ━━━
-const EASE_EXIT = [0.4, 0, 0.2, 1];
-const EASE_AUTHORIZE = [0.25, 0.1, 0.25, 1];
+const EASE_EXIT: [number, number, number, number] = [0.4, 0, 0.2, 1];
+const EASE_AUTHORIZE: [number, number, number, number] = [0.25, 0.1, 0.25, 1];
 
 export default function Login() {
     const [password, setPassword] = useState('');
@@ -53,7 +53,7 @@ export default function Login() {
 
     const handleForgot = () => {
         const subject = encodeURIComponent('Auction Portal Password Recovery');
-        const body = encodeURIComponent('Hello,\n\nI need to recover the admin password for the Elite Auction Hub 2026.\n\nPlease verify my identity and resend the credentials.');
+        const body = encodeURIComponent('Hello,\n\nI need to recover the admin password for the CodingGita Auction.\n\nPlease verify my identity and resend the credentials.');
         window.open(`mailto:chitthirpara@gmail.com?subject=${subject}&body=${body}`);
     };
 

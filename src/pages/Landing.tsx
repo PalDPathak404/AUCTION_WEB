@@ -31,8 +31,8 @@ import { ArrowRight } from 'lucide-react';
  */
 
 // ━━━ EASING ━━━
-const EASE_REVEAL = [0.0, 0, 0.2, 1];
-const EASE_EXIT = [0.4, 0, 0.2, 1];
+const EASE_REVEAL: [number, number, number, number] = [0.0, 0, 0.2, 1];
+const EASE_EXIT: [number, number, number, number] = [0.4, 0, 0.2, 1];
 
 // ━━━ COLORS ━━━
 const GOLD = 'rgba(212, 175, 55, 1)';
@@ -44,7 +44,7 @@ export default function Landing() {
 
     const handleStart = () => {
         setIsExiting(true);
-        setTimeout(() => navigate('/login'), 1000);
+        setTimeout(() => navigate('/auction'), 1000);
     };
 
     return (

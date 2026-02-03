@@ -76,23 +76,51 @@ export function AuctionStage({
 
   const prevTimeRef = useRef(timeRemaining);
   const hasPlayedHornRef = useRef(false);
+  const hasPlayedStartupRef = useRef(false);
 
   const sirenRef = useRef<HTMLAudioElement | null>(null);
   const tickRef = useRef<HTMLAudioElement | null>(null);
-  const soldRef = useRef<HTMLAudioElement | null>(null);
+  // SOLD AUDIO REFS — Conditional routing
+  const soldDefaultRef = useRef<HTMLAudioElement | null>(null);
+  const soldHackerRef = useRef<HTMLAudioElement | null>(null);    // ≥15 crores
+  const sold7CroreRef = useRef<HTMLAudioElement | null>(null);    // EXACTLY 7 crores
+  const startupKBCRef = useRef<HTMLAudioElement | null>(null);    // Startup (once)
 
+  // Preload ALL audio on mount
   useEffect(() => {
+    // Timer horn
     const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2857/2857-preview.mp3');
     audio.volume = 1.0;
     sirenRef.current = audio;
 
+    // Timer tick
     const tick = new Audio('https://assets.mixkit.co/active_storage/sfx/2590/2590-preview.mp3');
     tick.volume = 0.4;
     tickRef.current = tick;
 
-    const sold = new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3');
-    sold.volume = 0.8;
-    soldRef.current = sold;
+    // SOLD sounds (from public folder)
+    const soldDefault = new Audio('/kaun_banega_crorepati.mp3');
+    soldDefault.volume = 0.8;
+    soldDefaultRef.current = soldDefault;
+
+    const soldHacker = new Audio('/hacker_hai_bhai_hacker_hain.mp3');
+    soldHacker.volume = 0.9;
+    soldHackerRef.current = soldHacker;
+
+    const sold7Crore = new Audio('/7_crore.mp3');
+    sold7Crore.volume = 0.9;
+    sold7CroreRef.current = sold7Crore;
+
+    // Startup sound — KBC (plays once)
+    const startupKBC = new Audio('/kaun_banega_crorepati.mp3');
+    startupKBC.volume = 0.8;
+    startupKBCRef.current = startupKBC;
+
+    // Play startup sound ONCE when auction system initializes
+    if (!hasPlayedStartupRef.current) {
+      hasPlayedStartupRef.current = true;
+      startupKBC.play().catch(e => console.log('Startup sound failed:', e));
+    }
   }, []);
 
   useEffect(() => {
@@ -158,11 +186,33 @@ export function AuctionStage({
     setSoldPhase('lock');
     setShowSoldOverlay(true);
 
-    // Play Sold sound
-    if (soldRef.current) {
-      soldRef.current.currentTime = 0;
-      soldRef.current.play().catch(e => console.log('Sold sound failed:', e));
-    }
+    // ━━━ SOLD AUDIO ROUTING ━━━
+    // Deterministic selection: EXACTLY one sound per sale
+    const playSOLDSound = (price: number) => {
+      // Priority 1: EXACTLY 7 crores
+      if (price === 7) {
+        if (sold7CroreRef.current) {
+          sold7CroreRef.current.currentTime = 0;
+          sold7CroreRef.current.play().catch(e => console.log('7 Crore sound failed:', e));
+        }
+        return;
+      }
+      // Priority 2: ≥15 crores
+      if (price >= 15) {
+        if (soldHackerRef.current) {
+          soldHackerRef.current.currentTime = 0;
+          soldHackerRef.current.play().catch(e => console.log('Hacker sound failed:', e));
+        }
+        return;
+      }
+      // Default: All other sales
+      if (soldDefaultRef.current) {
+        soldDefaultRef.current.currentTime = 0;
+        soldDefaultRef.current.play().catch(e => console.log('Default sold sound failed:', e));
+      }
+    };
+
+    playSOLDSound(bidAmount);
 
     // Minimal, restrained confetti — single burst, gold palette
     confetti({

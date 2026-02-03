@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import { useAuction } from '@/hooks/useAuction';
 import { Button } from '@/components/ui/button';
-import { User, Hash, ArrowRight, FastForward } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { User, Hash, ArrowRight, FastForward, ArrowLeft, Lock } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 
 /**
- * CONTROLLER PAGE - Mobile View
+ * CONTROLLER PAGE - Mobile View (PASSWORD PROTECTED)
  * 
  * INVARIANTS:
  * - Shows current student (queue[0]) - READ ONLY
@@ -13,7 +16,13 @@ import { Link } from 'react-router-dom';
  * - NEVER touches queue[0] (current student)
  * - NEVER affects timer
  */
+
+const CONTROLLER_PASSWORD = 'admin@2026';
+
 const Controller = () => {
+    const [password, setPassword] = useState('');
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+
     const {
         currentStudent,
         nextStudent,
@@ -21,6 +30,17 @@ const Controller = () => {
         availableStudents,
         sendToEndOfQueue,
     } = useAuction();
+
+    const handleLogin = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (password === CONTROLLER_PASSWORD) {
+            setIsAuthenticated(true);
+            toast.success('Controller access granted');
+        } else {
+            toast.error('Incorrect password');
+            setPassword('');
+        }
+    };
 
     const handleSendToEnd = () => {
         if (nextStudent) {
@@ -31,6 +51,38 @@ const Controller = () => {
     // Calculate stats
     const soldCount = vanguards.reduce((acc, v) => acc + v.squad.length, 0);
     const totalSpent = vanguards.reduce((sum, v) => sum + v.spent, 0);
+
+    // ━━━ PASSWORD GATE ━━━
+    if (!isAuthenticated) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center p-4">
+                <div className="glass-card-elevated p-8 rounded-2xl w-full max-w-md space-y-6 animate-scale-in">
+                    <div className="text-center space-y-2">
+                        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                            <Lock className="w-8 h-8 text-primary" />
+                        </div>
+                        <h1 className="text-2xl font-bold text-foreground">Controller Access</h1>
+                        <p className="text-muted-foreground text-sm">Enter password to manage queue</p>
+                    </div>
+                    <form onSubmit={handleLogin} className="space-y-4">
+                        <Input
+                            type="password"
+                            placeholder="Controller Password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="bg-secondary text-lg h-12"
+                        />
+                        <Button type="submit" className="w-full h-12 text-lg font-semibold glow-primary">
+                            Authenticate
+                        </Button>
+                        <Link to="/auction" className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+                            <ArrowLeft className="w-4 h-4" /> Back to Auction
+                        </Link>
+                    </form>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-background flex flex-col">
