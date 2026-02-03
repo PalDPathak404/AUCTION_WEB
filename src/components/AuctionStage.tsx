@@ -1,5 +1,7 @@
-import { Gavel, User, Hash, ChevronRight, AlertCircle, Clock, Play, RotateCcw } from 'lucide-react';
+import { Gavel, User, Hash, ChevronRight, AlertCircle, Play, RotateCcw } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Student, Vanguard } from '@/types/auction';
 import confetti from 'canvas-confetti';
 import { Button } from '@/components/ui/button';
@@ -13,16 +15,45 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+/**
+ * AuctionStage — Main auction control with Ceremonial SOLD Animation
+ * 
+ * CRITICAL: SOLD overlay uses React Portal to render at document.body level.
+ * This ensures NO clipping from parent containers.
+ * 
+ * SOLD CEREMONY (3 phases):
+ * 
+ * PHASE 1 — LOCK (0-200ms)
+ *   Screen dims, attention captured
+ * 
+ * PHASE 2 — DECLARATION (200-2800ms)
+ *   SOLD announcement, gold accent, student + team + price
+ *   The PEAK moment — commands silence
+ * 
+ * PHASE 3 — RELEASE (2800-3500ms)
+ *   Overlay fades, control returns
+ */
+
 interface AuctionStageProps {
   currentStudent: Student | null;
   vanguards: Vanguard[];
   onSale: (studentId: string, vanguardId: string, price: number) => void;
   remainingCount: number;
   totalCount: number;
+  timeRemaining: number;
+  isTimerRunning: boolean;
+  onStartTimer: () => void;
+  onPauseTimer: () => void;
+  onResetTimer: () => void;
 }
 
 const BASE_PRICE = 0.25;
-const TIMER_DURATION = 15;
+
+// ━━━ GOLD COLOR ━━━
+const GOLD = 'rgb(212, 175, 55)';
+
+// ━━━ EASING ━━━
+const EASE_CEREMONY: [number, number, number, number] = [0.25, 0.1, 0.25, 1];
 
 export function AuctionStage({
   currentStudent,
@@ -30,104 +61,87 @@ export function AuctionStage({
   onSale,
   remainingCount,
   totalCount,
+  timeRemaining,
+  isTimerRunning,
+  onStartTimer,
+  onPauseTimer,
+  onResetTimer,
 }: AuctionStageProps) {
   const [bidAmount, setBidAmount] = useState(BASE_PRICE);
   const [selectedVanguard, setSelectedVanguard] = useState<string>('');
   const [error, setError] = useState<string>('');
-  const [timeLeft, setTimeLeft] = useState(TIMER_DURATION);
-  const [isTimerActive, setIsTimerActive] = useState(false);
   const [showSoldOverlay, setShowSoldOverlay] = useState(false);
+  const [soldPhase, setSoldPhase] = useState<'lock' | 'declare' | 'release'>('lock');
   const [soldDetails, setSoldDetails] = useState<{ name: string; vanguard: string; price: number; color: string } | null>(null);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const prevTimeRef = useRef(timeRemaining);
+  const hasPlayedHornRef = useRef(false);
+
   const sirenRef = useRef<HTMLAudioElement | null>(null);
   const tickRef = useRef<HTMLAudioElement | null>(null);
   const soldRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    // Preload air horn sound (Bolder source)
     const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2857/2857-preview.mp3');
     audio.volume = 1.0;
     sirenRef.current = audio;
 
-    // Preload clock tick sound
     const tick = new Audio('https://assets.mixkit.co/active_storage/sfx/2590/2590-preview.mp3');
     tick.volume = 0.4;
     tickRef.current = tick;
 
-    // Preload sold sound (Celebration/Cheer)
     const sold = new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3');
     sold.volume = 0.8;
     soldRef.current = sold;
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
   }, []);
 
   useEffect(() => {
-    if (isTimerActive && timeLeft > 0) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft((prev) => {
-          const next = prev - 1;
-          // Play tick sound for final 5 seconds
-          if (next <= 5 && next > 0 && tickRef.current) {
-            tickRef.current.currentTime = 0;
-            tickRef.current.play().catch(e => console.log('Tick failed:', e));
-          }
-          return next;
-        });
-      }, 1000);
-    } else {
-      if (timeLeft === 0) {
-        setIsTimerActive(false);
-        if (timerRef.current) clearInterval(timerRef.current);
+    const prev = prevTimeRef.current;
+    const curr = Math.ceil(timeRemaining);
+    prevTimeRef.current = curr;
 
-        // Play horn sound twice (Speedy & Bold)
-        const playHornTwice = async () => {
-          if (sirenRef.current) {
-            try {
-              // First horn
-              await sirenRef.current.play();
-              // Speedy gap (300ms) then play again
-              setTimeout(() => {
-                if (sirenRef.current) {
-                  sirenRef.current.currentTime = 0;
-                  sirenRef.current.play().catch(e => console.log('Second horn failed:', e));
-                }
-              }, 300);
-            } catch (err) {
-              console.log('Audio play failed:', err);
-            }
-          }
-        };
-
-        playHornTwice();
-      }
+    if (!isTimerRunning) {
+      hasPlayedHornRef.current = false;
+      return;
     }
 
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isTimerActive, timeLeft]);
+    if (curr <= 5 && curr > 0 && curr < prev && tickRef.current) {
+      tickRef.current.currentTime = 0;
+      tickRef.current.play().catch(e => console.log('Tick failed:', e));
+    }
 
-  const handleStartTimer = () => setIsTimerActive(true);
-  const handleResetTimer = () => {
-    setTimeLeft(TIMER_DURATION);
-    setIsTimerActive(true);
-  };
+    if (curr === 0 && prev > 0 && !hasPlayedHornRef.current) {
+      hasPlayedHornRef.current = true;
+      const playHornTwice = async () => {
+        if (sirenRef.current) {
+          try {
+            await sirenRef.current.play();
+            setTimeout(() => {
+              if (sirenRef.current) {
+                sirenRef.current.currentTime = 0;
+                sirenRef.current.play().catch(e => console.log('Second horn failed:', e));
+              }
+            }, 300);
+          } catch (err) {
+            console.log('Audio play failed:', err);
+          }
+        }
+      };
+      playHornTwice();
+    }
+  }, [timeRemaining, isTimerRunning]);
+
+  useEffect(() => {
+    if (timeRemaining > 5) {
+      hasPlayedHornRef.current = false;
+    }
+  }, [timeRemaining]);
 
   const selectedTeam = vanguards.find((v) => v.id === selectedVanguard);
-  const canAfford = selectedTeam ? (selectedTeam.budget - selectedTeam.spent) >= bidAmount : true;
 
   const handleConfirmSale = () => {
     if (!currentStudent || !selectedVanguard) {
       setError('Please select a Vanguard');
-      return;
-    }
-
-    if (!canAfford) {
-      setError(`${selectedTeam?.name} cannot afford this bid`);
       return;
     }
 
@@ -141,6 +155,7 @@ export function AuctionStage({
     };
 
     setSoldDetails(details);
+    setSoldPhase('lock');
     setShowSoldOverlay(true);
 
     // Play Sold sound
@@ -149,38 +164,35 @@ export function AuctionStage({
       soldRef.current.play().catch(e => console.log('Sold sound failed:', e));
     }
 
-    // High energy confetti
-    const duration = 3 * 1000;
-    const animationEnd = Date.now() + duration;
-    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100 };
+    // Minimal, restrained confetti — single burst, gold palette
+    confetti({
+      particleCount: 60,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ['#d4af37', '#ffffff', '#c0c0c0'],
+      ticks: 120,
+      gravity: 1.4,
+      scalar: 0.8,
+      zIndex: 9999,
+    });
 
-    const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+    // PHASE TIMELINE:
+    // T+0ms:    LOCK phase (dim)
+    // T+200ms:  DECLARE phase (announcement)
+    // T+2800ms: RELEASE phase (fade)
+    // T+3500ms: Overlay dismissed
 
-    const interval: any = setInterval(function () {
-      const timeLeft = animationEnd - Date.now();
-
-      if (timeLeft <= 0) {
-        return clearInterval(interval);
-      }
-
-      const particleCount = 50 * (timeLeft / duration);
-      confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
-      confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
-    }, 250);
+    setTimeout(() => setSoldPhase('declare'), 200);
+    setTimeout(() => setSoldPhase('release'), 2800);
 
     onSale(currentStudent.id, selectedVanguard, bidAmount);
     setBidAmount(BASE_PRICE);
     setSelectedVanguard('');
 
-    // Reset timer to full but keep it paused during overlay
-    setIsTimerActive(false);
-    setTimeLeft(TIMER_DURATION);
-
     setTimeout(() => {
       setShowSoldOverlay(false);
       setSoldDetails(null);
-      // Auto-start for the next student
-      setIsTimerActive(true);
+      onStartTimer();
     }, 3500);
   };
 
@@ -193,6 +205,210 @@ export function AuctionStage({
     };
     return colors[color] || 'bg-primary';
   };
+
+  const getVanguardTextColor = (color: string) => {
+    const colors: Record<string, string> = {
+      emerald: 'text-vanguard-emerald',
+      blue: 'text-vanguard-blue',
+      amber: 'text-vanguard-amber',
+      rose: 'text-vanguard-rose',
+    };
+    return colors[color] || 'text-primary';
+  };
+
+  const displayTime = Math.ceil(timeRemaining);
+
+  // ━━━ SOLD OVERLAY (Rendered via Portal to document.body) ━━━
+  const soldOverlay = (
+    <AnimatePresence>
+      {showSoldOverlay && soldDetails && (
+        <motion.div
+          key="sold-ceremony"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            // NO border, NO rounded corners, NO card styling
+          }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3, ease: EASE_CEREMONY }}
+        >
+          {/* PHASE 1: LOCK — Full viewport dim */}
+          <motion.div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: '#000',
+              // NO border
+            }}
+            initial={{ opacity: 0 }}
+            animate={{
+              opacity: soldPhase === 'release' ? 0 : 0.9,
+            }}
+            transition={{
+              duration: soldPhase === 'lock' ? 0.2 : 0.4,
+              ease: EASE_CEREMONY
+            }}
+          />
+
+          {/* Subtle gold vignette — NO border */}
+          <motion.div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: `radial-gradient(ellipse 80% 60% at 50% 50%, rgba(212, 175, 55, 0.08) 0%, transparent 70%)`,
+              pointerEvents: 'none',
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: soldPhase === 'declare' ? 1 : 0 }}
+            transition={{ duration: 0.5, ease: EASE_CEREMONY }}
+          />
+
+          {/* PHASE 2: DECLARATION — Typography dominance */}
+          <motion.div
+            style={{
+              position: 'relative',
+              zIndex: 10,
+              textAlign: 'center',
+              padding: '0 2rem',
+              // NO border, NO background, NO card
+            }}
+            initial={{ opacity: 0, scale: 0.97, filter: 'blur(8px)' }}
+            animate={{
+              opacity: soldPhase === 'release' ? 0 : (soldPhase === 'declare' ? 1 : 0),
+              scale: soldPhase === 'declare' ? 1 : 0.97,
+              filter: soldPhase === 'declare' ? 'blur(0px)' : 'blur(8px)',
+            }}
+            transition={{
+              duration: 0.5,
+              ease: EASE_CEREMONY,
+            }}
+          >
+            {/* SOLD — Pure typography, no box */}
+            <motion.h2
+              style={{
+                fontSize: 'clamp(4rem, 12vw, 10rem)',
+                fontWeight: 900,
+                letterSpacing: '-0.02em',
+                color: GOLD,
+                textShadow: `0 0 80px rgba(212, 175, 55, 0.5), 0 0 40px rgba(212, 175, 55, 0.3)`,
+                marginBottom: '2rem',
+                lineHeight: 1,
+                // NO border, NO background
+              }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{
+                opacity: soldPhase === 'declare' ? 1 : 0,
+                y: soldPhase === 'declare' ? 0 : 20,
+              }}
+              transition={{ duration: 0.4, delay: 0.1, ease: EASE_CEREMONY }}
+            >
+              SOLD
+            </motion.h2>
+
+            {/* Student Name */}
+            <motion.p
+              style={{
+                fontSize: 'clamp(1.25rem, 3vw, 2rem)',
+                fontWeight: 700,
+                color: 'rgba(255, 255, 255, 0.85)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.2em',
+                marginBottom: '1.5rem',
+              }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: soldPhase === 'declare' ? 1 : 0 }}
+              transition={{ duration: 0.4, delay: 0.15, ease: EASE_CEREMONY }}
+            >
+              {soldDetails.name}
+            </motion.p>
+
+            {/* Divider */}
+            <motion.div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '1.5rem',
+                marginBottom: '1.5rem',
+              }}
+              initial={{ opacity: 0, scaleX: 0 }}
+              animate={{
+                opacity: soldPhase === 'declare' ? 1 : 0,
+                scaleX: soldPhase === 'declare' ? 1 : 0,
+              }}
+              transition={{ duration: 0.4, delay: 0.2, ease: EASE_CEREMONY }}
+            >
+              <span style={{ height: '1px', width: '60px', background: 'rgba(255,255,255,0.2)' }} />
+              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.3em', textTransform: 'uppercase' }}>
+                to
+              </span>
+              <span style={{ height: '1px', width: '60px', background: 'rgba(255,255,255,0.2)' }} />
+            </motion.div>
+
+            {/* Winning Team */}
+            <motion.p
+              className={getVanguardTextColor(soldDetails.color)}
+              style={{
+                fontSize: 'clamp(2rem, 5vw, 3.5rem)',
+                fontWeight: 900,
+                textShadow: '0 0 40px currentColor',
+                marginBottom: '2rem',
+              }}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{
+                opacity: soldPhase === 'declare' ? 1 : 0,
+                y: soldPhase === 'declare' ? 0 : 10,
+              }}
+              transition={{ duration: 0.4, delay: 0.25, ease: EASE_CEREMONY }}
+            >
+              {soldDetails.vanguard}
+            </motion.p>
+
+            {/* Final Price */}
+            <motion.div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'baseline',
+                gap: '0.5rem',
+              }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: soldPhase === 'declare' ? 1 : 0 }}
+              transition={{ duration: 0.4, delay: 0.3, ease: EASE_CEREMONY }}
+            >
+              <span
+                style={{
+                  fontSize: 'clamp(2.5rem, 6vw, 4rem)',
+                  fontWeight: 900,
+                  fontFamily: 'monospace',
+                  color: GOLD,
+                }}
+              >
+                {soldDetails.price.toFixed(2)}
+              </span>
+              <span style={{ fontSize: '1.5rem', fontWeight: 600, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                credits
+              </span>
+            </motion.div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 
   if (!currentStudent) {
     return (
@@ -211,184 +427,157 @@ export function AuctionStage({
   }
 
   return (
-    <div className="glass-card-elevated rounded-2xl overflow-hidden animate-slide-up">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-primary/20 to-transparent px-6 py-4 border-b border-border/50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 rounded-full bg-primary animate-pulse-glow" />
-            <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-              Live Auction
-            </span>
-          </div>
-          <div className="text-sm font-medium text-muted-foreground">
-            <span className="text-primary font-bold">{totalCount - remainingCount + 1}</span>
-            <span className="mx-1">/</span>
-            <span>{totalCount}</span>
+    <>
+      {/* SOLD OVERLAY — Rendered to document.body via Portal */}
+      {typeof document !== 'undefined' && createPortal(soldOverlay, document.body)}
+
+      <div className="glass-card-elevated rounded-2xl overflow-hidden animate-slide-up">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-primary/20 to-transparent px-6 py-4 border-b border-border/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 rounded-full bg-primary animate-pulse-glow" />
+              <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                Live Auction
+              </span>
+            </div>
+            <div className="text-sm font-medium text-muted-foreground">
+              <span className="text-primary font-bold">{totalCount - remainingCount + 1}</span>
+              <span className="mx-1">/</span>
+              <span>{totalCount}</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="p-8">
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Student Info */}
-          <div className="space-y-6">
-            <div className="flex items-start gap-4">
-              <div className="w-16 h-16 rounded-xl bg-secondary flex items-center justify-center shrink-0">
-                <User className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <div className="space-y-1">
-                <h2 className="text-2xl lg:text-3xl font-bold text-foreground leading-tight">
-                  {currentStudent.name}
-                </h2>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Hash className="w-4 h-4" />
-                  <span className="font-mono text-sm">{currentStudent.grNumber}</span>
+        {/* Main Content */}
+        <div className="p-8">
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Student Info */}
+            <div className="space-y-6">
+              <div className="flex items-start gap-4">
+                <div className="w-16 h-16 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+                  <User className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <div className="space-y-1">
+                  <h2 className="text-2xl lg:text-3xl font-bold text-foreground leading-tight">
+                    {currentStudent.name}
+                  </h2>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Hash className="w-4 h-4" />
+                    <span className="font-mono text-sm">{currentStudent.grNumber}</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="flex gap-3">
-              <div className="glass-card rounded-lg px-4 py-3 flex-1">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Base Price</p>
-                <p className="text-xl font-bold text-primary number-display">{BASE_PRICE} cr</p>
-              </div>
-              <div className={`glass-card rounded-lg px-4 py-3 flex-1 border-2 transition-colors ${timeLeft <= 5 ? 'border-destructive/50 bg-destructive/10' : 'border-transparent'}`}>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Timer</p>
-                <div className="flex items-center justify-between">
-                  <p className={`text-xl font-bold number-display ${timeLeft <= 5 ? 'text-destructive animate-pulse' : 'text-foreground'}`}>
-                    {timeLeft}s
-                  </p>
-                  <div className="flex gap-1">
-                    {!isTimerActive ? (
-                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleStartTimer}>
-                        <Play className="w-3.5 h-3.5" />
+              <div className="flex gap-3">
+                <div className="glass-card rounded-lg px-4 py-3 flex-1">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Base Price</p>
+                  <p className="text-xl font-bold text-primary number-display">{BASE_PRICE} cr</p>
+                </div>
+                <div className={`glass-card rounded-lg px-4 py-3 flex-1 border-2 transition-colors ${displayTime <= 5 ? 'border-destructive/50 bg-destructive/10' : 'border-transparent'}`}>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Timer</p>
+                  <div className="flex items-center justify-between">
+                    <p className={`text-xl font-bold number-display ${displayTime <= 5 ? 'text-destructive animate-pulse' : 'text-foreground'}`}>
+                      {displayTime}s
+                    </p>
+                    <div className="flex gap-1">
+                      {!isTimerRunning ? (
+                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={onStartTimer}>
+                          <Play className="w-3.5 h-3.5" />
+                        </Button>
+                      ) : (
+                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={onPauseTimer}>
+                          <div className="w-2 h-2 bg-foreground rounded-sm" />
+                        </Button>
+                      )}
+                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={onResetTimer}>
+                        <RotateCcw className="w-3.5 h-3.5" />
                       </Button>
-                    ) : (
-                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setIsTimerActive(false)}>
-                        <div className="w-2 h-2 bg-foreground rounded-sm" />
-                      </Button>
-                    )}
-                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleResetTimer}>
-                      <RotateCcw className="w-3.5 h-3.5" />
-                    </Button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Bid Controls */}
-          <div className="space-y-6">
-            {/* Vanguard Selection */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                Select Vanguard
-              </label>
-              <Select value={selectedVanguard} onValueChange={setSelectedVanguard}>
-                <SelectTrigger className="h-14 bg-secondary border-border text-lg">
-                  <SelectValue placeholder="Choose winning team..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {vanguards.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                      <div className="flex items-center gap-3">
-                        <div className={`w-3 h-3 rounded-full ${getVanguardColor(v.color)}`} />
-                        <span>{v.name}</span>
-                        <span className="text-muted-foreground">
-                          ({(v.budget - v.spent).toFixed(2)} cr left)
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Bid Amount */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
+            {/* Bid Controls */}
+            <div className="space-y-6">
+              <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                  Final Price
+                  Select Vanguard
                 </label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    value={bidAmount}
-                    onChange={(e) => setBidAmount(Math.max(0, Number(e.target.value)))}
-                    className="w-24 h-10 text-center text-lg font-bold bg-secondary border-border number-display"
-                    min={0}
-                    step={0.05}
-                  />
-                  <span className="text-muted-foreground font-medium">cr</span>
+                <Select value={selectedVanguard} onValueChange={setSelectedVanguard}>
+                  <SelectTrigger className="h-14 bg-secondary border-border text-lg">
+                    <SelectValue placeholder="Choose winning team..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vanguards.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-3 h-3 rounded-full ${getVanguardColor(v.color)}`} />
+                          <span>{v.name}</span>
+                          <span className="text-muted-foreground">
+                            ({(v.budget - v.spent).toFixed(2)} cr left)
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                    Final Price
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      value={bidAmount}
+                      onChange={(e) => setBidAmount(Math.max(0, Number(e.target.value)))}
+                      className="w-24 h-10 text-center text-lg font-bold bg-secondary border-border number-display"
+                      min={0}
+                      step={0.05}
+                    />
+                    <span className="text-muted-foreground font-medium">cr</span>
+                  </div>
+                </div>
+                <Slider
+                  value={[bidAmount]}
+                  onValueChange={([value]) => setBidAmount(value)}
+                  min={0}
+                  max={100}
+                  step={0.05}
+                  className="py-2"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{BASE_PRICE} cr (Base)</span>
+                  <span>Max: 100 cr</span>
                 </div>
               </div>
-              <Slider
-                value={[bidAmount]}
-                onValueChange={([value]) => setBidAmount(value)}
-                min={0}
-                max={100}
-                step={0.05}
-                className="py-2"
-              />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>{BASE_PRICE} cr (Base)</span>
-                <span>Max: 100 cr</span>
-              </div>
-            </div>
 
-            {/* Error Message */}
-            {error && (
-              <div className="flex items-center gap-2 text-destructive text-sm">
-                <AlertCircle className="w-4 h-4" />
-                <span>{error}</span>
-              </div>
-            )}
+              {error && (
+                <div className="flex items-center gap-2 text-destructive text-sm">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>{error}</span>
+                </div>
+              )}
 
-            {/* Actions */}
-            <div className="flex gap-3">
-              <Button
-                onClick={handleConfirmSale}
-                disabled={!selectedVanguard || !canAfford}
-                className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold glow-primary disabled:opacity-50 disabled:glow-none"
-              >
-                <Gavel className="w-5 h-5 mr-2" />
-                Confirm Sale
-                <ChevronRight className="w-5 h-5 ml-2" />
-              </Button>
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleConfirmSale}
+                  disabled={!selectedVanguard}
+                  className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold glow-primary disabled:opacity-50 disabled:glow-none"
+                >
+                  <Gavel className="w-5 h-5 mr-2" />
+                  Confirm Sale
+                  <ChevronRight className="w-5 h-5 ml-2" />
+                </Button>
+              </div>
             </div>
           </div>
         </div>
       </div>
-      {/* SOLD OVERLAY */}
-      {showSoldOverlay && soldDetails && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center animate-in fade-in duration-500">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" />
-          <div className="relative z-10 text-center space-y-8 animate-scale-in">
-            <div className={`inline-block px-12 py-4 rounded-2xl bg-vanguard-${soldDetails.color} shadow-[0_0_50px_rgba(0,0,0,0.5)] glow-${soldDetails.color}`}>
-              <h2 className="text-8xl font-black text-white italic tracking-tighter animate-bounce">
-                SOLD!
-              </h2>
-            </div>
-            <div className="space-y-2">
-              <p className="text-3xl font-bold text-white uppercase tracking-[0.3em] opacity-80">
-                {soldDetails.name}
-              </p>
-              <div className="flex items-center justify-center gap-4">
-                <span className="h-px w-12 bg-white/20" />
-                <p className={`text-5xl font-black text-vanguard-${soldDetails.color} drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]`}>
-                  {soldDetails.vanguard}
-                </p>
-                <span className="h-px w-12 bg-white/20" />
-              </div>
-              <p className="text-4xl font-black text-white/90 font-mono mt-4">
-                {soldDetails.price.toFixed(2)} <span className="text-xl">cr</span>
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 }
