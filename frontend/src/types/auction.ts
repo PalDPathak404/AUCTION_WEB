@@ -1,7 +1,18 @@
-export interface Student {
+/**
+ * STRICT SOURCE DATA (From JSON/Sheets)
+ */
+export interface StudentIdentity {
   id: string;
-  grNumber: string;
   name: string;
+  grNumber: string;
+  image_url: string;
+}
+
+/**
+ * RUNTIME STATE (In Store)
+ * Extends proper identity with auction state.
+ */
+export interface Student extends StudentIdentity {
   status: 'available' | 'sold' | 'unsold';
   soldTo?: string;
   soldPrice?: number;

@@ -80,6 +80,23 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         try {
             const newState = store.confirmSale(studentId, vanguardId, price);
             setState(newState);
+
+            // LIVE EVENT SYNC: Fire-and-forget backend update
+            const soldStudent = newState.students[studentId];
+            const soldVanguard = newState.vanguards[soldStudent.soldTo];
+
+            fetch("http://localhost:5000/api/sale", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    studentId,
+                    name: soldStudent.name,
+                    price,
+                    vanguard: soldVanguard.name,
+                }),
+            }).catch(() => console.warn("Background sync failed"));
+
+
         } catch (err) {
             console.error('Sale failed:', err);
         }

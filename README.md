@@ -1,5 +1,5 @@
-<p align="center">
-  <img src="public/codinggita-logo.png" alt="CodingGita Logo" width="120" />
+ <p align="center">
+  <img src="/frontend/public/codinggita-logo.png" alt="CodingGita Logo" width="120" />
 </p>
 
 <h1 align="center">🏆 CodingGita Auction</h1>
@@ -21,7 +21,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Status-Production_Ready-gold?style=for-the-badge" alt="Production Ready" />
-  <img src="https://img.shields.io/badge/License-Proprietary-black?style=for-the-badge" alt="Proprietary" />
+  <img src="https://img.shields.io/badge/License-Private-black?style=for-the-badge" alt="Private" />
 </p>
 
 ---
@@ -71,18 +71,23 @@
 
 ## 🚀 Quick Start
 
+### 1. Backend (Sync Engine)
 ```bash
-# Install dependencies
+cd backend
 npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
+npm start
+# 🚀 Server running on port 5000
 ```
 
-The auction interface will be available at **http://localhost:8080**
+### 2. Frontend (Auction Arena)
+```bash
+cd frontend
+npm install
+npm run dev
+# ➜ Local: http://localhost:5173/
+```
+
+The auction interface will be available at **http://localhost:5173**
 
 ---
 
@@ -93,19 +98,27 @@ The auction interface will be available at **http://localhost:8080**
 │                    CodingGita Auction                       │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
-│  │   Landing   │───▶│   Auction   │───▶│    Admin    │     │
-│  │   Ceremony  │    │    Stage    │    │   Portal    │     │
-│  └─────────────┘    └─────────────┘    └─────────────┘     │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐      │
+│  │   Landing   │───▶│   Auction   │───▶│    Admin    │      │
+│  │   Ceremony  │    │    Stage    │    │   Portal    │      │
+│  └─────────────┘    └─────────────┘    └─────────────┘      │
 │                            │                                │
 │                            ▼                                │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │              Authoritative State Store               │  │
-│  │  • LocalStorage Persistence                          │  │
-│  │  • BroadcastChannel Sync                             │  │
-│  │  • Seeded PRNG Queue                                 │  │
-│  └──────────────────────────────────────────────────────┘  │
-│                                                             │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │              Authoritative State Store               │   │
+│  │  • LocalStorage Persistence                          │   │
+│  │  • BroadcastChannel Sync                             │   │
+│  │  • Seeded PRNG Queue                                 │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                            │                                │
+│                            ▼ (Async)                        │
+│                  ┌───────────────────┐                      │
+│                  │   Backend (API)   │                      │
+│                  └─────────┬─────────┘                      │
+│                            │                                │
+│             ┌──────────────┴──────────────┐                 │
+│             ▼                             ▼                 │
+│      MongoDB (Log)                Google Sheets (Live)      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -122,6 +135,7 @@ graph LR
     E -->|Yes| F[✅ Confirm Sale]
     E -->|No| G[⏭️ Skip]
     F --> H[🎵 SOLD Audio]
+    F --> K[🌩️ Sync Backend]
     G --> C
     H --> I{More Students?}
     I -->|Yes| C
@@ -188,7 +202,7 @@ The platform uses **conditional audio routing** for ceremonial announcements:
 
 ---
 
-## 👥 Team Structure
+## 👥 Team Structure (Vanguards)
 
 Each **Vanguard** team operates with:
 
@@ -200,6 +214,10 @@ Each **Vanguard** team operates with:
 │  📊 Spent: Live tracking           │
 │  👥 Squad: Acquired students       │
 │  🎨 Color: Team identity           │
+│     • Terra (Emerald)              │
+│     • Aqua  (Blue)                 │
+│     • Aero  (Amber)                │
+│     • Ignis (Rose)                 │
 └────────────────────────────────────┘
 ```
 
@@ -242,9 +260,14 @@ Each **Vanguard** team operates with:
 </tr>
 </table>
 
+### Backend Integration
+*   **Express.js**: REST API for ingestion.
+*   **MongoDB Atlas**: Persistent audit log.
+*   **Google Sheets**: Real-time stakeholder view.
+
 ---
 
-## ⚡ Performance
+## ⚡ Performance Targets
 
 | Metric | Target | Status |
 |--------|--------|--------|
@@ -252,28 +275,27 @@ Each **Vanguard** team operates with:
 | Time to Interactive | < 2s | ✅ |
 | Build Time | < 15s | ✅ |
 | Bundle Size | < 500KB | ✅ |
+| Network Latency Impact | 0ms | ✅ (Optimistic UI) |
 
 ---
 
-## 🛡️ Reliability Guarantees
+## 🛡️ Live Reliability Guarantees
 
-- ✅ **No data loss** on page refresh
-- ✅ **No race conditions** in state mutations
-- ✅ **No audio overlap** during sales
-- ✅ **No accidental resets** without confirmation
-- ✅ **No queue drift** across sessions
+- ✅ **No data loss** on page refresh (LocalStorage)
+- ✅ **No race conditions** in state mutations (Atomic Context)
+- ✅ **No audio overlap** during sales (Debounced Audio)
+- ✅ **No accidental resets** without confirmation (Guarded Actions)
+- ✅ **No queue drift** across sessions (Deterministic Seed)
 
 ---
 
-## 📋 Operational Checklist
+## 📋 Operational Checklist (Pre-Event)
 
-Before going live:
-
-- [ ] Verify all students are loaded
-- [ ] Confirm team budgets are set correctly
-- [ ] Test audio playback on venue speakers
-- [ ] Check projector display resolution
-- [ ] Ensure network stability (or save state locally)
+- [ ] **Infrastructure**: Verify Laptop -> Projector HDMI connection.
+- [ ] **Data**: Reset Auction Database & Google Sheets.
+- [ ] **Audio**: Test playback on venue speakers at volume.
+- [ ] **Sync**: Open `localhost:5173` on two browser windows to test BroadcastChannel.
+- [ ] **Backend**: Confirm `✅ Mongo Connected` and `✅ Sheet Ready` logs.
 
 ---
 
@@ -290,7 +312,7 @@ Before going live:
 ---
 
 <p align="center">
-  <img src="public/codinggita-logo.png" alt="CodingGita" width="60" />
+  <img src="/frontend/public/codinggita-logo.png" alt="CodingGita" width="60" />
 </p>
 
 <p align="center">
