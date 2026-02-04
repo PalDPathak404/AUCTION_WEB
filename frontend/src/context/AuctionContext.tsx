@@ -85,7 +85,7 @@ export const AuctionProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const soldStudent = newState.students[studentId];
             const soldVanguard = newState.vanguards[soldStudent.soldTo];
 
-            fetch("http://localhost:5000/api/sale", {
+            fetch("https://auction-web-qtks.onrender.com/api/sale", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
